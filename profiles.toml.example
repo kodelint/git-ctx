@@ -1,0 +1,25 @@
+# git-ctx configuration template
+# Copy this to ~/.config/git-ctx/profiles.toml (Linux/macOS)
+# or the appropriate config directory for your OS.
+
+[[profiles]]
+# A descriptive name for the profile
+name = "Personal GitHub"
+# The email address to use for git commits
+email = "personal@example.com"
+# Path to the SSH private key for this profile
+ssh_key_path = "~/.ssh/id_ed25519_personal"
+# A pattern to match against the remote origin URL (domain or path)
+match_pattern = "github.com/personal-user"
+
+[[profiles]]
+name = "Work GitLab"
+email = "employee@company.com"
+ssh_key_path = "~/.ssh/id_rsa_work"
+match_pattern = "gitlab.company.com"
+
+[[profiles]]
+name = "Open Source"
+email = "contributor@oss.org"
+ssh_key_path = "~/.ssh/id_ed25519_oss"
+match_pattern = "github.com/apache"
