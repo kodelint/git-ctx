@@ -89,15 +89,39 @@ pub fn get_remote_url() -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+/// Retrieves a local Git configuration value by key.
+/// Returns `Ok(Some(value))` if found, `Ok(None)` if not found, or an `Err` if the git command fails.
+pub fn get_local_config(key: &str) -> Result<Option<String>> {
+    let output = Command::new("git")
+        .args(["config", "--local", "--get", key])
+        .output()
+        .with_context(|| format!("Failed to execute git config --local --get {}", key))?;
+
+    if output.status.success() {
+        Ok(Some(String::from_utf8_lossy(&output.stdout).trim().to_string()))
+    } else {
+        // git config returns 1 if the key is not found
+        Ok(None)
+    }
+}
+
+/// Expands the tilde `~` in a path to the user's home directory.
+pub fn expand_tilde(path: &str) -> Result<String> {
+    if path.starts_with('~') {
+        let home = dirs::home_dir().context("Could not find home directory for tilde expansion")?;
+        Ok(home
+            .join(path.trim_start_matches("~/"))
+            .to_string_lossy()
+            .to_string())
+    } else {
+        Ok(path.to_string())
+    }
+}
+
 /// Applies local Git configuration settings to the current repository.
 pub fn apply_git_config(name: &str, email: &str, ssh_key_path: &str) -> Result<()> {
     // Resolve tilde in ssh_key_path
-    let expanded_ssh_key_path = if ssh_key_path.starts_with('~') {
-        let home = dirs::home_dir().context("Could not find home directory for tilde expansion")?;
-        home.join(ssh_key_path.trim_start_matches("~/")).to_string_lossy().to_string()
-    } else {
-        ssh_key_path.to_string()
-    };
+    let expanded_ssh_key_path = expand_tilde(ssh_key_path)?;
 
     // Set user.name
     Command::new("git")

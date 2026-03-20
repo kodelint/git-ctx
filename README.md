@@ -64,8 +64,19 @@ Alternatively, you can manually add the output of `git-ctx init-hook` into your 
 ### Global Options
 
 - `-d`, `--debug`: Enable debug logging to see how `git-ctx` matches profiles and applies configurations.
+- `-q`, `--quiet`: Suppress all non-error output (hides the profile switch notification).
 - `-h`, `--help`: Print help information.
 - `-V`, `--version`: Print version information.
+
+### Profile Switch Notifications
+
+`git-ctx` will automatically notify you via `stderr` when it detects a different profile is required for the repository you just entered. It only shows this message if it actually changes the local Git configuration.
+
+Example output:
+`[git-ctx] Switched to profile 'Work' (work@company.com)`
+
+To disable these notifications, add the `--quiet` flag to your shell hook initialization:
+`eval "$(git-ctx --quiet init-hook)"` (though `init-hook` itself doesn't need it, you can manually edit the hook or we can update `init-hook` to include it).
 
 ### Debugging
 

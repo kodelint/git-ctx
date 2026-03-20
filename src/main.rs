@@ -15,6 +15,10 @@ struct Cli {
     #[arg(short, long, global = true)]
     debug: bool,
 
+    /// Suppress all non-error output.
+    #[arg(short, long, global = true)]
+    quiet: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -43,16 +47,16 @@ fn main() -> Result<()> {
     );
 
     match &cli.command {
-        Commands::Auto => handle_auto()?,
+        Commands::Auto => handle_auto(cli.quiet)?,
         Commands::List => handle_list()?,
-        Commands::InitHook => handle_init_hook(),
+        Commands::InitHook => handle_init_hook(cli.quiet),
     }
 
     Ok(())
 }
 
 /// The core command triggered by the shell hook.
-fn handle_auto() -> Result<()> {
+fn handle_auto(quiet: bool) -> Result<()> {
     log::debug!("Handling 'auto' command");
 
     // 1. Load config
@@ -81,12 +85,36 @@ fn handle_auto() -> Result<()> {
             profile.name,
             remote_url
         );
-        // 4. Apply git config
-        git::apply_git_config(&profile.name, &profile.email, &profile.ssh_key_path)?;
-        log::info!(
-            "Successfully applied git configuration for profile '{}'",
-            profile.name
-        );
+
+        // 4. Check if we need to apply the profile
+        let current_email = git::get_local_config("user.email")?;
+        let current_ssh = git::get_local_config("core.sshCommand")?;
+        let expanded_ssh_key_path = git::expand_tilde(&profile.ssh_key_path)?;
+        let expected_ssh = format!("ssh -i {} -F /dev/null", expanded_ssh_key_path);
+
+        let needs_apply = current_email.as_deref() != Some(&profile.email)
+            || current_ssh.as_deref() != Some(&expected_ssh);
+
+        if needs_apply {
+            // 5. Apply git config
+            git::apply_git_config(&profile.name, &profile.email, &profile.ssh_key_path)?;
+            log::info!(
+                "Successfully applied git configuration for profile '{}'",
+                profile.name
+            );
+
+            if !quiet {
+                eprintln!(
+                    "[git-ctx] Switched to profile '{}' ({})",
+                    profile.name, profile.email
+                );
+            }
+        } else {
+            log::debug!(
+                "Profile '{}' already applied, skipping update.",
+                profile.name
+            );
+        }
     } else {
         log::debug!("No matching profile found for remote: {}", remote_url);
     }
@@ -162,16 +190,18 @@ fn handle_list() -> Result<()> {
     Ok(())
 }
 
-/// Outputs the shell hook code for Zsh and Bash.
+/// Outputs the shell code required for the directory change hook.
 ///
 /// The user should pipe this output to their shell configuration file:
 /// `eval "$(git-ctx init-hook)"`
-fn handle_init_hook() {
-    let hook = r#"
+fn handle_init_hook(quiet: bool) {
+    let quiet_flag = if quiet { " --quiet" } else { "" };
+    let hook = format!(
+        r#"
 # git-ctx auto-detect hook
 git_ctx_hook() {
     if command -v git-ctx > /dev/null 2>&1; then
-        git-ctx auto
+        git-ctx{} auto
     fi
 }
 
@@ -190,9 +220,12 @@ elif [ -n "$BASH_VERSION" ]; then
     # Run once on shell start
     git_ctx_hook
 fi
-"#;
+"#,
+        quiet_flag
+    );
     println!("{}", hook.trim());
 }
+
 
 #[cfg(test)]
 mod tests {
