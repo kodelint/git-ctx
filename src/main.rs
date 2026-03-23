@@ -198,31 +198,30 @@ fn handle_init_hook(quiet: bool) {
     let quiet_flag = if quiet { " --quiet" } else { "" };
     let hook = format!(
         r#"
-# git-ctx auto-detect hook
-git_ctx_hook() {
+    # git-ctx auto-detect hook
+    git_ctx_hook() {{
     if command -v git-ctx > /dev/null 2>&1; then
         git-ctx{} auto
     fi
-}
+    }}
 
-# For Zsh
-if [ -n "$ZSH_VERSION" ]; then
+    # For Zsh
+    if [ -n "$ZSH_VERSION" ]; then
     autoload -U add-zsh-hook
     add-zsh-hook chpwd git_ctx_hook
     # Run once on shell start
     git_ctx_hook
-# For Bash
-elif [ -n "$BASH_VERSION" ]; then
+    # For Bash
+    elif [ -n "$BASH_VERSION" ]; then
     # Bash doesn't have a direct equivalent to chpwd, so we wrap cd
-    cd() {
+    cd() {{
         builtin cd "$@" && git_ctx_hook
-    }
+    }}
     # Run once on shell start
     git_ctx_hook
-fi
-"#,
-        quiet_flag
-    );
+    fi
+    "#
+    , quiet_flag);
     println!("{}", hook.trim());
 }
 
