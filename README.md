@@ -59,58 +59,70 @@ eval "$(git-ctx init-hook)"
 
 Alternatively, you can manually add the output of `git-ctx init-hook` into your config file.
 
-## Usage
+## Usage Examples
 
-### Global Options
-
-- `-d`, `--debug`: Enable debug logging to see how `git-ctx` matches profiles and applies configurations.
-- `-q`, `--quiet`: Suppress all non-error output (hides the profile switch notification).
-- `-h`, `--help`: Print help information.
-- `-V`, `--version`: Print version information.
-
-### Profile Switch Notifications
-
-`git-ctx` will automatically notify you via `stderr` when it detects a different profile is required for the repository you just entered. It only shows this message if it actually changes the local Git configuration.
-
-Example output:
-`[git-ctx] Switched to profile 'Work' (work@company.com)`
-
-To disable these notifications, add the `--quiet` flag to your shell hook initialization:
-`eval "$(git-ctx --quiet init-hook)"` (though `init-hook` itself doesn't need it, you can manually edit the hook or we can update `init-hook` to include it).
-
-### Debugging
-
-If the tool is not behaving as expected, you can enable debug logging using the `--debug` flag:
+### 1. Interactive Setup
+You can easily add a new profile using the interactive `add` command:
 
 ```bash
-git-ctx --debug auto
+git-ctx add
+# Follow the prompts:
+# Profile Name: Jane Doe
+# Email: jane.doe@work.com
+# SSH Key Path: ~/.ssh/id_ed25519_work
+# Match Pattern (Regex): github\.com/work-org/.*
 ```
 
-Alternatively, you can use the `RUST_LOG` environment variable:
+### 2. Automatic Switching in Action
+Once the shell hook is installed, the tool works silently in the background.
 
 ```bash
-RUST_LOG=debug git-ctx auto
+# Enter a personal repository
+cd ~/projects/personal-repo
+# git-ctx automatically sets user.name="Personal User" and core.sshCommand="ssh -i ~/.ssh/id_rsa_personal"
+
+# Switch to a work repository
+cd ~/projects/work-repo
+# [git-ctx] Switched to profile 'Work User' (jane.doe@work.com)
 ```
+
+### 3. Verify Your Setup
+Use the `doctor` command to ensure everything is configured correctly:
+
+```bash
+git-ctx doctor
+# Checking configuration...
+# ✅ Config file found at: "/Users/user/.config/git-ctx/profiles.toml"
+# ✅ Config is valid (2 profiles)
+#
+# Checking shell hook status...
+# ℹ️  $GIT_CTX_CONFIG is not set (optional)
+```
+
+## Commands
 
 ### `git-ctx auto`
+The core command used by the shell hook. It scans all remotes in the current repository and applies the first matching profile. It is optimized for performance using `git2` to minimize shell latency.
 
-This is the command called by the shell hook. It checks for a git repository, parses the remote URL, and applies the matching profile from your configuration. It fails silently and quickly if you are not in a Git repo.
-
-### `git-ctx list`
-
-List all current profiles in a readable format:
-
+### `git-ctx add`
+Add a new profile via CLI arguments or interactive prompts.
 ```bash
-git-ctx list
+git-ctx add --name "Work" --email "work@corp.com" --ssh-key-path "~/.ssh/id_work" --match-pattern "corp\.com"
 ```
 
+### `git-ctx list`
+Displays all configured profiles in a formatted table.
+
+### `git-ctx doctor`
+Diagnoses common issues with the configuration file or shell environment.
+
 ### `git-ctx init-hook`
+Generates the shell script required for automatic profile switching.
 
-Outputs the shell code required to initialize the `chpwd` (Zsh) or `cd` wrap (Bash) hook.
+## Configuration
 
-## Development and Testing
+By default, `git-ctx` looks for the configuration file at `~/.config/git-ctx/profiles.toml` (following XDG standards where applicable).
 
-`git-ctx` is built with Rust and uses unit tests for core logic.
 
 ### Run Tests
 
