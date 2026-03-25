@@ -1,5 +1,7 @@
 # git-ctx
 
+![git-ctx](./git-ctx.png)
+
 `git-ctx` is a CLI tool designed to automatically manage Git profiles based on the repository's remote origin URL. It uses a shell hook to silently apply local repository configurations (`user.name`, `user.email`, and `core.sshCommand`) whenever you change directories.
 
 ## Features

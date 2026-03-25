@@ -2,12 +2,63 @@ name: Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
 jobs:
+  # This job runs on push to main to detect if a new release is needed based on semantic commits.
+  bump-version:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.check-version.outputs.new_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install git-cliff
+        uses: kenji-miyake/setup-git-cliff@v2
+
+      - name: Determine next version
+        id: check-version
+        run: |
+          CURRENT_VERSION=$(grep '^version =' Cargo.toml | cut -d '"' -f 2)
+          # git-cliff --bump calculates the next version based on conventional commits
+          NEXT_VERSION=$(git-cliff --bumped-version)
+
+          echo "Current version: $CURRENT_VERSION"
+          echo "Next version: $NEXT_VERSION"
+
+          if [ "v$CURRENT_VERSION" != "$NEXT_VERSION" ]; then
+            echo "Version bump needed: $CURRENT_VERSION -> $NEXT_VERSION"
+            echo "new_tag=$NEXT_VERSION" >> $GITHUB_OUTPUT
+
+            # Update Cargo.toml
+            sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"${NEXT_VERSION#v}\"/" Cargo.toml
+            # Update src/main.rs
+            sed -i "s/version = \"$CURRENT_VERSION\"/version = \"${NEXT_VERSION#v}\"/" src/main.rs
+
+            # Configure git
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+
+            # Commit and tag
+            git add Cargo.toml src/main.rs
+            git commit -m "chore(release): prepare for $NEXT_VERSION"
+            git tag -a "$NEXT_VERSION" -m "Release $NEXT_VERSION"
+            git push origin main --tags
+          else
+            echo "No version bump needed."
+            echo "new_tag=" >> $GITHUB_OUTPUT
+          fi
+
   test:
     name: Test
+    # Run on tags OR if we just pushed a new tag from the bump-version job
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,6 +70,7 @@ jobs:
   build:
     name: Build
     needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: macos-latest
     strategy:
       matrix:
@@ -46,6 +98,7 @@ jobs:
   release:
     name: Release
     needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

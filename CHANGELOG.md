@@ -1,17 +1,23 @@
-## [unreleased]
+## [0.1.0] - 2026-03-25
 
 ### Bug Fixes
 
 - Escape curly braces in init-hook shell script
 
+### Documentation
+
+- Add usage examples and document new commands
+
 ### Features
 
 - Initial release with profile management and automation
 - Add profile switch notifications and --quiet flag
+- Enhance profile management, add logo, and automate releases
 
 ### Miscellaneous Chores
 
 - Add gitignore
+- Update changelog for refactoring changes
 
 ### Refactor
 

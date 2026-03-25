@@ -55,7 +55,16 @@ impl Config {
             return Ok(PathBuf::from(env_path));
         }
 
-        // Priority 2: ProjectDirs (~/.config/git-ctx/profiles.toml on Linux/macOS)
+        // Priority 2: Standard ~/.config/git-ctx/profiles.toml (Preferred for CLI tools)
+        if let Some(home) = dirs::home_dir() {
+            let xdg_path = home.join(".config").join("git-ctx").join("profiles.toml");
+            if xdg_path.exists() {
+                log::debug!("Found config at standard XDG path: {:?}", xdg_path);
+                return Ok(xdg_path);
+            }
+        }
+
+        // Priority 3: ProjectDirs (OS-specific standard fallback)
         if let Some(proj_dirs) = directories::ProjectDirs::from("", "", "git-ctx") {
             let config_dir = proj_dirs.config_dir();
             let default_path = config_dir.join("profiles.toml");
@@ -63,13 +72,8 @@ impl Config {
             return Ok(default_path);
         }
 
-        // Priority 3: Default ~/.config/git-ctx/profiles.toml (Fallback)
+        // Priority 4: Default ~/.config/git-ctx/profiles.toml (Fallback if not exists yet)
         let home = dirs::home_dir().context("Could not find home directory")?;
-        let default_path = home.join(".config").join("git-ctx").join("profiles.toml");
-        log::debug!(
-            "Using default fallback configuration path: {:?}",
-            default_path
-        );
-        Ok(default_path)
+        Ok(home.join(".config").join("git-ctx").join("profiles.toml"))
     }
 }
