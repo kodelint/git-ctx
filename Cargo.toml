@@ -1,6 +1,6 @@
 [package]
 name = "git-ctx"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2021"
 
 [dependencies]
@@ -11,7 +11,7 @@ dirs = "5.0"
 anyhow = "1.0"
 log = "0.4"
 env_logger = "0.11"
-git2 = "0.20.4"
+git2 = { version = "0.20.4", features = ["vendored-libgit2", "vendored-openssl"] }
 directories = "6.0.0"
 shellexpand = "3.1.2"
 regex = "1.12.3"

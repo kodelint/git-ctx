@@ -9,7 +9,7 @@ use std::io::{self, Write};
 
 #[derive(Parser)]
 #[command(name = "git-ctx")]
-#[command(version = "0.1.0")]
+#[command(version = "0.0.0")]
 #[command(author = "kodelint")]
 #[command(about = "Manage multiple Git profiles based on remote origin URLs", long_about = None)]
 struct Cli {
