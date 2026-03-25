@@ -1,5 +1,5 @@
-use std::process::Command;
-use anyhow::{Result, Context, anyhow};
+use anyhow::{anyhow, Context, Result};
+use git2::Repository;
 
 /// Represents the extracted components of a Git remote URL.
 ///
@@ -67,80 +67,80 @@ pub fn parse_git_url(url: &str) -> Option<GitRemoteInfo> {
     None
 }
 
-/// Retrieves the remote 'origin' URL for the Git repository in the current directory.
-///
-/// This function executes `git remote get-url origin` and returns the trimmed output.
+/// Retrieves all remote URLs for the Git repository in the current directory.
 ///
 /// # Errors
 /// Returns an error if:
 /// - The current directory is not a Git repository.
-/// - The 'origin' remote is not defined.
-/// - The `git` command fails to execute.
-pub fn get_remote_url() -> Result<String> {
-    let output = Command::new("git")
-        .args(["remote", "get-url", "origin"])
-        .output()
-        .with_context(|| "Failed to execute git remote get-url origin")?;
+/// - The `git2` library fails to open the repository or retrieve remotes.
+pub fn get_remote_urls() -> Result<Vec<String>> {
+    let repo = match Repository::open(".") {
+        Ok(r) => r,
+        Err(e) if e.code() == git2::ErrorCode::NotFound => {
+            return Err(anyhow!("Not in a Git repository"));
+        }
+        Err(e) => return Err(anyhow::Error::from(e).context("Failed to open Git repository")),
+    };
+    let remotes = repo
+        .remotes()
+        .with_context(|| "Failed to get Git remotes")?;
 
-    if !output.status.success() {
-        return Err(anyhow!("Failed to get git remote URL (not in a git repo or no origin)"));
+    let mut urls = Vec::new();
+    for name in remotes.iter().flatten() {
+        if let Ok(remote) = repo.find_remote(name) {
+            if let Some(url) = remote.url() {
+                urls.push(url.to_string());
+            }
+        }
     }
 
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-}
-
-/// Retrieves a local Git configuration value by key.
-/// Returns `Ok(Some(value))` if found, `Ok(None)` if not found, or an `Err` if the git command fails.
-pub fn get_local_config(key: &str) -> Result<Option<String>> {
-    let output = Command::new("git")
-        .args(["config", "--local", "--get", key])
-        .output()
-        .with_context(|| format!("Failed to execute git config --local --get {}", key))?;
-
-    if output.status.success() {
-        Ok(Some(String::from_utf8_lossy(&output.stdout).trim().to_string()))
-    } else {
-        // git config returns 1 if the key is not found
-        Ok(None)
+    if urls.is_empty() {
+        return Err(anyhow!("No remotes found in the Git repository"));
     }
+
+    Ok(urls)
 }
 
 /// Expands the tilde `~` in a path to the user's home directory.
 pub fn expand_tilde(path: &str) -> Result<String> {
-    if path.starts_with('~') {
-        let home = dirs::home_dir().context("Could not find home directory for tilde expansion")?;
-        Ok(home
-            .join(path.trim_start_matches("~/"))
-            .to_string_lossy()
-            .to_string())
-    } else {
-        Ok(path.to_string())
-    }
+    Ok(shellexpand::tilde(path).into_owned())
 }
 
 /// Applies local Git configuration settings to the current repository.
 pub fn apply_git_config(name: &str, email: &str, ssh_key_path: &str) -> Result<()> {
+    let repo = Repository::open(".").with_context(|| "Failed to open Git repository")?;
+    let mut config = repo
+        .config()
+        .with_context(|| "Failed to get Git config")?
+        .open_level(git2::ConfigLevel::Local)
+        .with_context(|| "Failed to open local Git config")?;
+
     // Resolve tilde in ssh_key_path
     let expanded_ssh_key_path = expand_tilde(ssh_key_path)?;
+    let ssh_command = format!("ssh -i {}", expanded_ssh_key_path);
 
-    // Set user.name
-    Command::new("git")
-        .args(["config", "--local", "user.name", name])
-        .status()
-        .with_context(|| "Failed to set user.name")?;
+    // Check current values before writing
+    let current_name = config.get_string("user.name").ok();
+    let current_email = config.get_string("user.email").ok();
+    let current_ssh = config.get_string("core.sshCommand").ok();
 
-    // Set user.email
-    Command::new("git")
-        .args(["config", "--local", "user.email", email])
-        .status()
-        .with_context(|| "Failed to set user.email")?;
+    if current_name.as_deref() != Some(name) {
+        config
+            .set_str("user.name", name)
+            .with_context(|| "Failed to set user.name")?;
+    }
 
-    // Set core.sshCommand
-    let ssh_command = format!("ssh -i {} -F /dev/null", expanded_ssh_key_path);
-    Command::new("git")
-        .args(["config", "--local", "core.sshCommand", &ssh_command])
-        .status()
-        .with_context(|| "Failed to set core.sshCommand")?;
+    if current_email.as_deref() != Some(email) {
+        config
+            .set_str("user.email", email)
+            .with_context(|| "Failed to set user.email")?;
+    }
+
+    if current_ssh.as_deref() != Some(&ssh_command) {
+        config
+            .set_str("core.sshCommand", &ssh_command)
+            .with_context(|| "Failed to set core.sshCommand")?;
+    }
 
     Ok(())
 }

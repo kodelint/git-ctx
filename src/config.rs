@@ -1,6 +1,6 @@
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use anyhow::{Result, Context};
 
 /// Represents a single Git profile configuration.
 ///
@@ -37,7 +37,7 @@ impl Config {
     pub fn load() -> Result<Self> {
         let config_path = Self::get_config_path()?;
         log::debug!("Attempting to load config from: {:?}", config_path);
-        
+
         if !config_path.exists() {
             log::debug!("Config file not found, using empty default configuration");
             return Ok(Config::default());
@@ -55,10 +55,21 @@ impl Config {
             return Ok(PathBuf::from(env_path));
         }
 
-        // Priority 2: Default ~/.config/git-ctx/profiles.toml
+        // Priority 2: ProjectDirs (~/.config/git-ctx/profiles.toml on Linux/macOS)
+        if let Some(proj_dirs) = directories::ProjectDirs::from("", "", "git-ctx") {
+            let config_dir = proj_dirs.config_dir();
+            let default_path = config_dir.join("profiles.toml");
+            log::debug!("Using ProjectDirs configuration path: {:?}", default_path);
+            return Ok(default_path);
+        }
+
+        // Priority 3: Default ~/.config/git-ctx/profiles.toml (Fallback)
         let home = dirs::home_dir().context("Could not find home directory")?;
         let default_path = home.join(".config").join("git-ctx").join("profiles.toml");
-        log::debug!("Using default configuration path: {:?}", default_path);
+        log::debug!(
+            "Using default fallback configuration path: {:?}",
+            default_path
+        );
         Ok(default_path)
     }
 }
