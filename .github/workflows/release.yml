@@ -28,8 +28,13 @@ jobs:
           CURRENT_VERSION=$(grep '^version =' Cargo.toml | cut -d '"' -f 2)
           # git-cliff --bump calculates the next version based on conventional commits
           NEXT_VERSION=$(git-cliff --bumped-version)
+          # Ensure NEXT_VERSION starts with 'v' for the tag comparison
+          if [[ ! $NEXT_VERSION =~ ^v ]]; then
+            NEXT_VERSION="v$NEXT_VERSION"
+          fi
 
           echo "Current version: $CURRENT_VERSION"
+
           echo "Next version: $NEXT_VERSION"
 
           if [ "v$CURRENT_VERSION" != "$NEXT_VERSION" ]; then
